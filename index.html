@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+.caption {
+  font-weight: bold;
+}
+
+.key path {
+  display: none;
+}
+
+.key line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.county-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+}
+
+</style>
+<style type = "text/css">
+h1 {
+    font-size: 30px;
+}
+    
+li{
+    font-size: 14px
+}
+</style>
+<body>
+<script src="//d3js.org/d3.v3.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<h1 style = "text-align: center">
+    <bold>Hawaii Population Density</bold>
+</h1>
+<script>
+
+var width = 960,
+    height = 1100;
+
+var formatNumber = d3.format(",d");
+
+var projection = d3.geo.albers()
+    .center([0,18.438912])
+    .rotate([156.000057,0,0])
+    .parallels([18.9,22.2])
+    .scale(6500)
+    .translate([width/2, height/2]);
+    
+var path = d3.geo.path()
+    .projection(projection);
+
+var color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]);
+    //Uncomment the bottom code and comment the above .range line to get a blue spectrum of the counties in California.
+    //.range(["#e6f2ff", "#b3d9ff", "#80bfff", "#4da6ff", "#1a8cff", "#0073e6", "#0059b3", "#004080", "#001a33"]);
+
+// A position encoding for the key only.
+var x = d3.scale.linear()
+    .domain([0, 5100])
+    .range([0, 480]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(13)
+    .tickValues(color.domain())
+    .tickFormat(function(d) { return d >= 100 ? formatNumber(d) : null; });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+var g = svg.append("g")
+    .attr("class", "key")
+    .attr("transform", "translate(440,40)");
+
+g.selectAll("rect")
+    .data(color.range().map(function(d, i) {
+      return {
+        x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+        x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+        z: d
+      };
+    }))
+  .enter().append("rect")
+    .attr("height", 8)
+    .attr("x", function(d) { return d.x0; })
+    .attr("width", function(d) { return d.x1 - d.x0; })
+    .style("fill", function(d) { return d.z; });
+
+g.call(xAxis).append("text")
+    .attr("class", "caption")
+    .attr("y", -6)
+    .text("Population per square mile");
+    
+
+d3.json("hi.json", function(error, hi) {
+    //console.log(hi);
+  if (error) throw error;
+    console.log(hi);
+
+  var tracts = topojson.feature(hi, hi.objects.tl_2012_15_tract);
+
+  // Clip tracts to land.
+  svg.append("defs").append("clipPath")
+      .attr("id", "clip-land")
+    .append("path")
+      .datum(topojson.feature(hi, hi.objects.Hawaii_Counties))
+      .attr("d", path);
+    
+
+  // Group tracts by color for faster rendering.
+  svg.append("g")
+      .attr("class", "tract")
+      .attr("clip-path", "url(#clip-land)")
+    .selectAll("path")
+      .data(d3.nest()
+        .key(function(d) { return color(d.properties.population / d.properties.area * 2.58999e6); })
+        .entries(tracts.features.filter(function(d) { return d.properties.area; })))
+    .enter().append("path")
+      .style("fill", function(d) { return d.key; })
+      .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
+
+  // Draw county borders.
+  svg.append("path")
+      .datum(topojson.mesh(hi, hi.objects.Hawaii_Counties))
+      .attr("class", "county-border")
+      .attr("d", path);
+});
+
+d3.select(self.frameElement).style("height", height + "px");
+
+</script>
+<h2>
+    <p>
+        <li>Artem Litvak</li>
+        <li>Instructor: Suresh Lodha</li>
+        <li>CMPS 165: Data Programming for Visualization</li>
+        <li>Fall 2016</li>
+    </p>
+</h2>
